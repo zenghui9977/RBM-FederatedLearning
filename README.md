@@ -10,4 +10,5 @@
  
 ## 数据文件（结构目录）
  -- data 
+ 
  -- | -- sub_users5_items5.txt  【Foursquare or Gowalla的数据文件】
