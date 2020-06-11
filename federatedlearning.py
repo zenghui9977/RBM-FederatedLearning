@@ -3,6 +3,7 @@ import numpy as np
 from rbm import RBM, RBM_EVAL
 from metrics import *
 from utils import *
+import time
 
 
 def init_global_model(weight_shape):
@@ -95,8 +96,11 @@ def FederatedLearning(params, train_data, test_set, train_set_item, divide_user,
     area_num = len(divide_user)
     area_best = [GlobalBest(Top_K) for i in range(area_num)]
     globalbest = GlobalBest(Top_K)
+
+    round_train_time = []
     print('\t Start Federated Learning communication round ......')
     for r in range(params.max_communication_round):
+        t0 = time.time() # communicatoin round r training start
         print('\t \t Communication round %d training:' % r)
         # 用户随机采样，生成乱序的的用户排序，取前c * N个
         perm = np.random.permutation(params.client_num)
@@ -105,6 +109,7 @@ def FederatedLearning(params, train_data, test_set, train_set_item, divide_user,
 
         weight_accountant, visible_bias_accountant, hidden_bias_accountant = [], [], []
         error_accountant = []
+        # 遍历采样得到的每一个节点（用户），每一个节点的数据训练得到一个RBM模型
         for u in sample_user:
             u_train_data = torch.zeros([params.b, params.rbm_visible_unit])
             u_train_data[0] = train_data[u]
@@ -121,11 +126,15 @@ def FederatedLearning(params, train_data, test_set, train_set_item, divide_user,
             weight_accountant.append(u_rbm.weights)
             visible_bias_accountant.append(u_rbm.visible_bias)
             hidden_bias_accountant.append(u_rbm.hidden_bias)
+
+        # 模型聚合
         print('\t \t update the global model')
         global_model_weights = 1 / sample_user_num * sum(weight_accountant)
         global_model_visible_bias = 1 / sample_user_num * sum(visible_bias_accountant)
         global_model_hidden_bias = 1 / sample_user_num * sum(hidden_bias_accountant)
-
+        t1 = time.time()
+        round_train_time.append(t1 - t0)
+        print('\t \t train time is %0.4f' % (t1 - t0))
         print('\t \t evaluate the global model')
         print('********************')
         print('the total error is %0.4f' % sum(error_accountant))
@@ -143,4 +152,6 @@ def FederatedLearning(params, train_data, test_set, train_set_item, divide_user,
                                                                Top_K)
             area_best[i].update_best_metrics(Top_K, pre, rec, f_mea, ndcg, hit_num, _map, r)
         print('********************')
+
+    print('total train time is %0.4f' % sum(round_train_time))
     return area_best, globalbest
